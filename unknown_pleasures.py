@@ -17,19 +17,19 @@ import time
 from math import sin, cos, pi
 import moviepy.editor as mp
 
-#cvImg = None
-
-IMG_RATIO = 1.3477218225419665
-IMG_HEIGHT = 1500
+IMG_RATIO = 1.3477218225419665 # ration from width to height
+IMG_HEIGHT = 1500 # in pixels, image used to draw
 IMG_WIDTH = int (IMG_HEIGHT / IMG_RATIO)
-BORDER = 0.05
-ANIMATION_WIDTH = 0.4 # central percentage of IMG_WIDTH
-ANIMATION_MAX_AMPLITUDE = 0.05 # proportinal to IMG_HEIGHT
-POINTS_PER_LINE = int(IMG_WIDTH / 10)
-LINES = 100
-FREQUENCIES_PER_LINE = 8
-GIF_SIZE = 100 # number of frames in the gif file
-RESIZE_RATIO = 0.5
+BORDER = 0.05 # black border percentage around the image
+ANIMATION_WIDTH = 0.5 # central percentage of IMG_WIDTH
+ANIMATION_MAX_AMPLITUDE = 0.10 # proportinal to IMG_HEIGHT
+POINTS_PER_LINE = int(IMG_WIDTH / 5) # number of points in the line (connected by lines)
+LINES = 90 # number of horiontal lines/rows in the image
+FREQUENCIES_PER_LINE = 16 # number of waves per line (May not be achieved, since theres a minimum disntace between waves
+GIF_SIZE = 40 # number of frames in the gif file
+RESIZE_RATIO = 0.5 #percentage of the GIF based on IMG_WIDTH and IMG_HEIGHT
+
+GIF_SKIP_FRAME = 1 # 1 keeps every frame, 2 keeps 1 for every 2 frames, 3 keeps 1 for every 3 frames, etc
 
 lines = []
 
@@ -39,24 +39,9 @@ frequencies = []
 frequenciesCounter = []
 
 step = 0
+gifSkipFrameCounter = GIF_SKIP_FRAME - 1
 
 NORMAL = [0.99, 0.95, 0.9, 0.75, 0.5, 0.25, 0.1, 0.05, 0.01]
-
-def main():
-    im = Image.new('RGB', (IMG_WIDTH, IMG_HEIGHT))
-    draw = ImageDraw.Draw(im)
-    draw.line((0, 0) + im.size, fill=128)
-    draw.line((0, im.size[1], im.size[0], 0), fill=128)
-
-    open_cv_image = numpy.array(im)
-    open_cv_image=cv2.cvtColor(open_cv_image, cv2.COLOR_RGB2BGR)
-    # Convert RGB to BGR
-    #open_cv_image = open_cv_image[:, :, ::-1].copy()
-    cv2.imshow("main", open_cv_image)
-    cv2.waitKey(0)
-
-    #im.show()
-
 
 def animationStep():
     global step
@@ -153,7 +138,9 @@ def randomizeFrequencies():
 
                 yfLimit2 = int(IMG_HEIGHT * ANIMATION_MAX_AMPLITUDE / 2)
                 newY = randint(0, yfLimit2)
-                if yf > 0:
+                if yf < 0:
+                    newY = 0
+                else:
                     newY = newY * - 1
                 frequencies[i][f] = [xf, newY]
 
@@ -176,6 +163,8 @@ def calculateNormal():
 
 def drawImage():
     global cvImg
+    global gifSkipFrameCounter
+
     im = Image.new('RGB', (IMG_WIDTH, IMG_HEIGHT))
     draw = ImageDraw.Draw(im)
 
@@ -190,12 +179,13 @@ def drawImage():
         ya = yLine
         poly = [(-1, IMG_HEIGHT + 1), (-1, yLine)]
         for x, y in line:
-            yCalc = y + yLine + (randint(0, 2) - 4)
+            yCalc = y + yLine + (randint(0, 1) - 2)
             poly.append((x, yCalc))
             xa = x
             ya = yCalc
         poly.append((IMG_WIDTH + 1, yLine))
         poly.append((IMG_WIDTH + 1, IMG_HEIGHT + 1))
+        draw.line(poly, fill="#ffffff", width=3)
         draw.polygon(poly, fill=0, outline="#ffffff")
 
     font = ImageFont.truetype(r'C:\Windows\Fonts\arial.ttf', 30)
@@ -203,7 +193,6 @@ def drawImage():
     print("Frame:", step)
     #draw.text((5, 5), str(step), font = font, align ="left")
 
-    draw.text((540, 1430), "https://dalpix.com/unknown-pleasures", font = font, align ="left", fill="#909090")
 
     # Clear the side borders with two black rectangles
     borderX1 = int(IMG_WIDTH * BORDER)
@@ -213,12 +202,21 @@ def drawImage():
     poly = [(IMG_WIDTH,0), (borderX2, 0), (borderX2, IMG_HEIGHT), (IMG_WIDTH, IMG_HEIGHT)]
     draw.polygon(poly, fill=0, outline=0)
 
+    borderY2 = int(IMG_HEIGHT * (1-BORDER))
+    #draw.text((540, 1430), "https://dalpix.com/unknown-pleasures", font = font, align ="right", fill="#909090")
+    draw.text((borderX1, borderY2), "https://dalpix.com/unknown-pleasures", font = font, align ="right", fill="#909090")
+
+
 
     im = im.resize((int(IMG_WIDTH * RESIZE_RATIO), int(IMG_HEIGHT * RESIZE_RATIO)), resample=Image.LANCZOS)
 
-    images.append(im.copy())
-    if len(images) > int(GIF_SIZE / 2):
-        images.pop(0)
+    # add images to a list used to generate the GIF
+    gifSkipFrameCounter += 1
+    if gifSkipFrameCounter >= GIF_SKIP_FRAME:
+        gifSkipFrameCounter = 0
+        images.append(im.copy())
+        if len(images) > int(GIF_SIZE / 2):
+            images.pop(0)
 
     cvImg2 = numpy.array(im)
     cvImg2 = cv2.cvtColor(cvImg2, cv2.COLOR_RGB2BGR)
@@ -243,14 +241,15 @@ if __name__ == '__main__':
         xfLimit2 = int(IMG_WIDTH / 2 + (IMG_WIDTH * ANIMATION_WIDTH / 2))
         yfLimit1 = int(IMG_HEIGHT * ANIMATION_MAX_AMPLITUDE / 2 * -1)
         yfLimit2 = int(IMG_HEIGHT * ANIMATION_MAX_AMPLITUDE / 2)
+        yfLimit2 = 0
 
-        pixels = int ((IMG_WIDTH / POINTS_PER_LINE) * len(NORMAL))
-        xf = randint(xfLimit1, xfLimit1 + pixels * 2)
+        pixelsPerWave = int ((IMG_WIDTH / POINTS_PER_LINE) * len(NORMAL))
+        xf = randint(xfLimit1, xfLimit1 + pixelsPerWave * 2)
         yf = randint(yfLimit1, yfLimit2)
         frequencies[i].append((xf, yf))
         frequenciesCounter[i].append(50)
         for f in range(FREQUENCIES_PER_LINE - 1):
-            xf = randint(xf + pixels, xf + pixels * 2)
+            xf = randint(xf + pixelsPerWave, xf + pixelsPerWave * 2)
             yf = randint(yfLimit1, yfLimit2)
             if xf < xfLimit2:
                 frequencies[i].append((xf, yf))
@@ -275,6 +274,7 @@ if __name__ == '__main__':
         if cv2.waitKey(2) == 27:
             break
 
+    print ("Saving GIF...")
     gif = []
     for img in images:
         gif.append(img)
@@ -282,7 +282,6 @@ if __name__ == '__main__':
         gif.append(img)
     gif[0].save("unknwon_pleasures.gif", save_all=True, append_images=gif[1:], duration=50, loop=0)
 
-    #clip = mp.VideoFileClip("unknwon_pleasures.gif")
-    #clip.write_videofile("unknwon_pleasures.mp4")
+    print ("Done. GIF contains %s frames" % (len(gif)))
 
 
